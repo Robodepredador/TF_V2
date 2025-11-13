@@ -1,4 +1,4 @@
-package com.farmaceutica.core.model;
+package com.farmaceutica.compras.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -14,24 +14,24 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "roles", schema = "farmacia_clean", indexes = {
-        @Index(name = "uq_roles_nombre_rol", columnList = "nombre_rol", unique = true)
+@Table(name = "tipos_producto", schema = "farmacia_clean", indexes = {
+        @Index(name = "uq_tipos_producto_nombre_tipo", columnList = "nombre_tipo", unique = true)
 }, uniqueConstraints = {
-        @UniqueConstraint(name = "roles_nombre_rol_key", columnNames = {"nombre_rol"})
+        @UniqueConstraint(name = "tipos_producto_nombre_tipo_key", columnNames = {"nombre_tipo"})
 })
-public class Rol {
+public class TipoProducto {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_rol", nullable = false)
+    @Column(name = "id_tipo", nullable = false)
     private Integer id;
 
     @Size(max = 100)
     @NotNull
-    @Column(name = "nombre_rol", nullable = false, length = 100)
-    private String nombreRol;
+    @Column(name = "nombre_tipo", nullable = false, length = 100)
+    private String nombreTipo;
 
-    @Column(name = "descripcion_rol", length = Integer.MAX_VALUE)
-    private String descripcionRol;
+    @Column(name = "descripcion", length = Integer.MAX_VALUE)
+    private String descripcion;
 
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "fecha_creacion")
@@ -41,7 +41,7 @@ public class Rol {
     @Column(name = "fecha_actualizacion")
     private Instant fechaActualizacion;
 
-    @OneToMany(mappedBy = "idRol")
-    private Set<Usuario> usuarios = new LinkedHashSet<>();
+    @OneToMany(mappedBy = "idTipo")
+    private Set<Producto> productos = new LinkedHashSet<>();
 
 }

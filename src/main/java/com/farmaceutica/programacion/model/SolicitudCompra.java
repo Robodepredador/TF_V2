@@ -1,6 +1,6 @@
 package com.farmaceutica.programacion.model;
 
-import com.farmaceutica.core.model.Departamento;
+import com.farmaceutica.compras.model.OrdenCompra;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,15 +18,14 @@ import java.util.Set;
 @Getter
 @Setter
 @Entity
-@Table(name = "requerimientos", schema = "farmacia_clean", indexes = {
-        @Index(name = "idx_requerimientos_fecha", columnList = "fecha_solicitud"),
-        @Index(name = "idx_requerimientos_departamento", columnList = "id_departamento"),
-        @Index(name = "idx_requerimientos_estado", columnList = "estado")
+@Table(name = "solicitud_compra", schema = "farmacia_clean", indexes = {
+        @Index(name = "idx_solicitud_compra_requerimiento", columnList = "id_requerimiento"),
+        @Index(name = "idx_solicitud_compra_estado", columnList = "estado")
 })
-public class Requerimiento {
+public class SolicitudCompra {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_requerimiento", nullable = false)
+    @Column(name = "id_solicitud", nullable = false)
     private Integer id;
 
     @ColumnDefault("CURRENT_DATE")
@@ -36,28 +35,24 @@ public class Requerimiento {
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @OnDelete(action = OnDeleteAction.RESTRICT)
-    @JoinColumn(name = "id_departamento", nullable = false)
-    private Departamento idDepartamento;
+    @JoinColumn(name = "id_requerimiento", nullable = false)
+    private Requerimiento idRequerimiento;
 
     @NotNull
     @Column(name = "id_usuario_solicitante", nullable = false)
     private Integer idUsuarioSolicitante;
 
-    @Size(max = 20)
-    @ColumnDefault("'Media'")
-    @Column(name = "prioridad", length = 20)
-    private String prioridad;
-
-    @Column(name = "fecha_limite")
-    private LocalDate fechaLimite;
-
-    @Column(name = "observacion", length = Integer.MAX_VALUE)
-    private String observacion;
+    @Column(name = "motivo", length = Integer.MAX_VALUE)
+    private String motivo;
 
     @Size(max = 50)
     @ColumnDefault("'Pendiente'")
     @Column(name = "estado", length = 50)
     private String estado;
+
+    @ColumnDefault("false")
+    @Column(name = "productos_recibidos")
+    private Boolean productosRecibidos;
 
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "fecha_creacion")
@@ -67,10 +62,10 @@ public class Requerimiento {
     @Column(name = "fecha_actualizacion")
     private Instant fechaActualizacion;
 
-    @OneToMany(mappedBy = "idRequerimiento")
-    private Set<DetalleRequerimiento> detalleRequerimientos = new LinkedHashSet<>();
+    @OneToMany(mappedBy = "idSolicitud")
+    private Set<DetalleSolicitudCompra> detalleSolicitudCompras = new LinkedHashSet<>();
 
-    @OneToMany(mappedBy = "idRequerimiento")
-    private Set<SolicitudCompra> solicitudCompras = new LinkedHashSet<>();
+    @OneToMany(mappedBy = "idSolicitud")
+    private Set<OrdenCompra> ordenCompras = new LinkedHashSet<>();
 
 }

@@ -1,6 +1,5 @@
 package com.farmaceutica.core.repository;
 
-import com.farmaceutica.core.model.Producto;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
