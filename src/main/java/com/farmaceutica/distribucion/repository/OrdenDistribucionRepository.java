@@ -4,5 +4,13 @@ import com.farmaceutica.distribucion.model.OrdenDistribucion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface OrdenDistribucionRepository extends JpaRepository<OrdenDistribucion, Integer>, JpaSpecificationExecutor<OrdenDistribucion> {
+import java.util.List;
+
+public interface OrdenDistribucionRepository
+        extends JpaRepository<OrdenDistribucion, Integer>, JpaSpecificationExecutor<OrdenDistribucion> {
+
+    List<OrdenDistribucion> findByEstado(String estado);
+
+    List<OrdenDistribucion> findByPrioridad(String prioridad);
+
 }
