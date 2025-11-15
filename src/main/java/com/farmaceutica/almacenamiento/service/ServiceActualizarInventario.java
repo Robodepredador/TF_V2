@@ -1,14 +1,9 @@
 package com.farmaceutica.almacenamiento.service;
 
-import com.farmaceutica.almacenamiento.dto.InventarioResponseDTO;
-import com.farmaceutica.almacenamiento.dto.InventarioUpdateRequestDTO;
-import com.farmaceutica.almacenamiento.mapper.AlmacenamientoMapper;
 import com.farmaceutica.almacenamiento.model.*;
 import com.farmaceutica.almacenamiento.repository.*;
 import com.farmaceutica.compras.model.DetalleOrdenCompra;
 import com.farmaceutica.compras.model.OrdenCompra;
-import com.farmaceutica.compras.repository.DetalleOrdenCompraRepository;
-import com.farmaceutica.compras.repository.OrdenCompraRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

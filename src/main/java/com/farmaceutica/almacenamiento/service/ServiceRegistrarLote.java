@@ -1,15 +1,9 @@
 package com.farmaceutica.almacenamiento.service;
 
-import com.farmaceutica.almacenamiento.dto.RegistrarIncidenciaLoteRequestDTO;
-import com.farmaceutica.almacenamiento.dto.RegistrarLoteRequestDTO;
-import com.farmaceutica.almacenamiento.dto.LoteProductoResponseDTO;
-import com.farmaceutica.almacenamiento.mapper.AlmacenamientoMapper;
 import com.farmaceutica.almacenamiento.model.*;
 import com.farmaceutica.almacenamiento.repository.*;
 import com.farmaceutica.compras.model.OrdenCompra;
 import com.farmaceutica.compras.model.Producto;
-import com.farmaceutica.compras.repository.OrdenCompraRepository;
-import com.farmaceutica.compras.repository.ProductoRepository;
 import com.farmaceutica.core.model.Usuario;
 import com.farmaceutica.core.repository.UsuarioRepository;
 import jakarta.persistence.EntityNotFoundException;

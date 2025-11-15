@@ -1,19 +1,22 @@
 package com.farmaceutica.programacion.repository;
 
 import com.farmaceutica.programacion.model.SolicitudCompra;
-import com.farmaceutica.programacion.model.Requerimiento;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
-@Repository
-public interface SolicitudCompraRepository extends JpaRepository<SolicitudCompra, Integer>, JpaSpecificationExecutor<SolicitudCompra> {
-
-    // Solicitudes por requerimiento
-    List<SolicitudCompra> findByIdRequerimiento(Requerimiento requerimiento);
-
-    // Filtrar por estado
+public interface SolicitudCompraRepository extends JpaRepository<SolicitudCompra, Integer> {
+    /**
+     * Busca todas las solicitudes de compra que coincidan con un estado.
+     * (Ej. "Pendiente").
+     */
     List<SolicitudCompra> findByEstado(String estado);
+
+    /**
+     * (Opcional, pero recomendado)
+     * Busca solicitudes por una lista de estados.
+     * (Ej. "Pendiente", "Aprobada").
+     */
+    List<SolicitudCompra> findByEstadoIn(Collection<String> estados);
 }
