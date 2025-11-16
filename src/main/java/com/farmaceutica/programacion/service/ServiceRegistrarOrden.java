@@ -1,5 +1,3 @@
-// Ubicación: com/farmaceutica/programacion/service/ServiceRegistrarOrden.java
-
 package com.farmaceutica.programacion.service;
 
 import com.farmaceutica.programacion.dto.ProgramacionRequestDto;

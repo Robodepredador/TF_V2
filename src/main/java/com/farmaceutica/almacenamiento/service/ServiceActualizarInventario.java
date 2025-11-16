@@ -1,35 +1,36 @@
+// Ubicación: com/farmaceutica/almacenamiento/service/ServiceActualizarInventario.java
 
 package com.farmaceutica.almacenamiento.service;
 
 import com.farmaceutica.almacenamiento.dto.AjusteInventarioDto;
+import com.farmaceutica.almacenamiento.dto.IncidenciaLoteDto; // <-- AÑADIR IMPORT
 import com.farmaceutica.almacenamiento.dto.InventarioDto;
 import com.farmaceutica.almacenamiento.dto.LoteProductoDto;
+import com.farmaceutica.almacenamiento.dto.MovimientoInventarioDto; // <-- AÑADIR IMPORT
 
 import java.util.List;
 
 public interface ServiceActualizarInventario {
 
-    /**
-     * Realiza un ajuste de inventario (positivo o negativo).
-     * Simplemente registra un MovimientoInventario.
-     * Los Triggers de BD harán la validación de stock y la actualización.
-     *
-     * @param dto DTO con los detalles del ajuste.
-     */
+    // ... (Métodos que ya tenías: actualizarInventario, consultarInventario, etc.) ...
     void actualizarInventario(AjusteInventarioDto dto);
-
-    /**
-     * Consulta el inventario (stock actual por lote y almacén).
-     */
     List<InventarioDto> consultarInventario();
-
-    /**
-     * Consulta el detalle de un item de inventario.
-     */
     InventarioDto consultarDetalleInventario(Integer idInventario);
+    LoteProductoDto consultarDetalleLote(Integer idLote);
+
+    // --- AÑADIR ESTOS DOS MÉTODOS ---
 
     /**
-     * Consulta el detalle de un lote.
+     * Consulta el historial de movimientos (Kardex) para un item de inventario.
+     * @param idInventario El ID del inventario (Lote + Almacén).
+     * @return Lista de movimientos.
      */
-    LoteProductoDto consultarDetalleLote(Integer idLote);
+    List<MovimientoInventarioDto> consultarMovimientosInventario(Integer idInventario);
+
+    /**
+     * Consulta todas las incidencias reportadas para un lote específico.
+     * @param idLote El ID del lote.
+     * @return Lista de incidencias.
+     */
+    List<IncidenciaLoteDto> consultarIncidenciasPorLote(Integer idLote);
 }

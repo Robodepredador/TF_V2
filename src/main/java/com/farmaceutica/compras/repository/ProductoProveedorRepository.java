@@ -13,12 +13,6 @@ public interface ProductoProveedorRepository extends JpaRepository<ProductoProve
      */
     Optional<ProductoProveedor> findByIdProducto_IdAndIdProveedor_Id(Integer idProducto, Integer idProveedor);
 
-    /**
-     * (Este ya lo creamos para el servicio de Programación,
-     * pero asegúrate de que esté)
-     * Busca la primera cotización que encuentre para un producto.
-     */
-    Optional<ProductoProveedor> findFirstByIdProducto_Id(Integer idProducto);
 
     /**
      * Busca TODAS las cotizaciones (proveedores) de un producto específico.

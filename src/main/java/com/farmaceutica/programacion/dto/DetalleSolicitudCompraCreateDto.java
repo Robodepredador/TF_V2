@@ -1,5 +1,3 @@
-// en: com.farmaceutica.programacion.dto.DetalleSolicitudCompraCreateDto.java
-
 package com.farmaceutica.programacion.dto;
 
 import java.math.BigDecimal;

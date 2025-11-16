@@ -1,19 +1,16 @@
-// Ubicación: com/farmaceutica/programacion/dto/ProgramacionRequestDto.java
-
 package com.farmaceutica.programacion.dto;
 
 import com.farmaceutica.distribucion.dto.DetalleOrdenDistribucionCreateDto;
 import java.util.List;
 
 /**
- * DTO principal para el 'fork' del ServiceRegistrarOrden.
- * Contiene la decisión del supervisor y los detalles necesarios.
+ * DTO principal para el 'fork'.
+ * Contiene la decisión y el PAYLOAD (la carga) para la operación.
  */
 public record ProgramacionRequestDto(
-        Integer idRequerimiento,
+        Integer idRequerimiento, // El ID del requerimiento original (para actualizar su estado)
         String tipo, // "COMPRA" o "DISTRIBUCION"
-        String motivoCompra, // Opcional, solo si es "COMPRA"
 
-        // Solo si el tipo es "DISTRIBUCION"
+        SolicitudCompraCreateDto solicitudCompra,
         List<DetalleOrdenDistribucionCreateDto> detallesDistribucion
 ) {}

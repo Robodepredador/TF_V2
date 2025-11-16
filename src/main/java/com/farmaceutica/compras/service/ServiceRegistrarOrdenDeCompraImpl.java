@@ -64,10 +64,21 @@ public class ServiceRegistrarOrdenDeCompraImpl implements ServiceRegistrarOrdenD
         );
     }
 
+
     @Override
     public ProductoProveedorDto registrarCotizacion(ProductoProveedorCreateDto dto) {
+
+        // --- ¡AQUÍ SE USA! ---
+        // 1. Validar si ya existe una cotización para este producto/proveedor
+        productoProveedorRepository
+                .findByIdProducto_IdAndIdProveedor_Id(dto.idProducto(), dto.idProveedor())
+                .ifPresent(existente -> {
+                    throw new IllegalArgumentException("Esta cotización (Producto-Proveedor) ya existe. ID: "
+                            + existente.getId() + ". Use 'actualizar' en su lugar.");
+                });
+
+        // 2. Si no existe, crearla (Mapeo Manual)
         ProductoProveedor pp = new ProductoProveedor();
-        // Mapeo Manual (DTO -> Entidad)
         pp.setIdProducto(productoRepository.findById(dto.idProducto()).orElseThrow());
         pp.setIdProveedor(proveedorRepository.findById(dto.idProveedor()).orElseThrow());
         pp.setPrecioReferencial(dto.precioReferencial());

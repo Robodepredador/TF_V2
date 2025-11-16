@@ -7,16 +7,6 @@ import java.util.Collection;
 import java.util.List;
 
 public interface SolicitudCompraRepository extends JpaRepository<SolicitudCompra, Integer> {
-    /**
-     * Busca todas las solicitudes de compra que coincidan con un estado.
-     * (Ej. "Pendiente").
-     */
     List<SolicitudCompra> findByEstado(String estado);
-
-    /**
-     * (Opcional, pero recomendado)
-     * Busca solicitudes por una lista de estados.
-     * (Ej. "Pendiente", "Aprobada").
-     */
     List<SolicitudCompra> findByEstadoIn(Collection<String> estados);
 }

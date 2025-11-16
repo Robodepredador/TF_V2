@@ -1,5 +1,3 @@
-// en: com.farmaceutica.programacion.dto.SolicitudCompraCreateDto.java
-
 package com.farmaceutica.programacion.dto;
 
 import java.util.List;

@@ -5,20 +5,21 @@ package com.farmaceutica.programacion.service;
 import com.farmaceutica.almacenamiento.repository.InventarioRepository;
 import com.farmaceutica.almacenamiento.repository.LoteProductoRepository;
 import com.farmaceutica.compras.model.Producto;
-import com.farmaceutica.compras.model.ProductoProveedor;
 import com.farmaceutica.compras.repository.ProductoRepository;
-import com.farmaceutica.compras.repository.ProductoProveedorRepository;
+import com.farmaceutica.compras.repository.ProveedorRepository; // <-- Importante
+// import com.farmaceutica.compras.repository.ProductoProveedorRepository; // <-- ELIMINADO
 import com.farmaceutica.distribucion.dto.DetalleOrdenDistribucionCreateDto;
 import com.farmaceutica.distribucion.model.DetalleOrdenDistribucion;
 import com.farmaceutica.distribucion.model.OrdenDistribucion;
 import com.farmaceutica.distribucion.repository.DetalleOrdenDistribucionRepository;
 import com.farmaceutica.distribucion.repository.OrdenDistribucionRepository;
 import com.farmaceutica.programacion.dto.ProgramacionRequestDto;
-import com.farmaceutica.programacion.model.DetalleRequerimiento;
+import com.farmaceutica.programacion.dto.SolicitudCompraCreateDto; // <-- Importante
+// import com.farmaceutica.programacion.model.DetalleRequerimiento; // <-- ELIMINADO
 import com.farmaceutica.programacion.model.DetalleSolicitudCompra;
 import com.farmaceutica.programacion.model.Requerimiento;
 import com.farmaceutica.programacion.model.SolicitudCompra;
-import com.farmaceutica.programacion.repository.DetalleRequerimientoRepository;
+// import com.farmaceutica.programacion.repository.DetalleRequerimientoRepository; // <-- ELIMINADO
 import com.farmaceutica.programacion.repository.DetalleSolicitudCompraRepository;
 import com.farmaceutica.programacion.repository.RequerimientoRepository;
 import com.farmaceutica.programacion.repository.SolicitudCompraRepository;
@@ -32,43 +33,45 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional // ¡Importante! Este servicio escribe en la BD
+@Transactional
 public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
 
-    // --- Repositories Inyectados ---
-
-    // Programación
+    // --- Repositories Inyectados (LIMPIOS) ---
     private final RequerimientoRepository requerimientoRepository;
-    private final DetalleRequerimientoRepository detalleRequerimientoRepository;
+    // private final DetalleRequerimientoRepository detalleRequerimientoRepository; // <-- ELIMINADO
     private final SolicitudCompraRepository solicitudCompraRepository;
     private final DetalleSolicitudCompraRepository detalleSolicitudCompraRepository;
-
-    // Distribución
     private final OrdenDistribucionRepository ordenDistribucionRepository;
     private final DetalleOrdenDistribucionRepository detalleOrdenDistribucionRepository;
-
-    // Consulta (Almacenamiento y Compras)
     private final InventarioRepository inventarioRepository;
     private final ProductoRepository productoRepository;
     private final LoteProductoRepository loteProductoRepository;
-    private final ProductoProveedorRepository productoProveedorRepository;
-    /**
-     * Método principal (EL FORK).
-     */
+    private final ProveedorRepository proveedorRepository; // <-- Necesario para el mapeo
+    // private final ProductoProveedorRepository productoProveedorRepository; // <-- ELIMINADO
+
+
     @Override
     public void registrarOrdenEspecifica(ProgramacionRequestDto request) {
 
         Requerimiento requerimiento = requerimientoRepository.findById(request.idRequerimiento())
-                .orElseThrow(() -> new EntityNotFoundException("Requerimiento no encontrado: " + request.idRequerimiento()));
+                .orElseThrow(() -> new EntityNotFoundException("Requerimiento no encontrado"));
 
         if (!"Pendiente".equals(requerimiento.getEstado())) {
             throw new IllegalStateException("El requerimiento ya fue procesado.");
         }
 
+        // ---------- EL FORK (ACTUALIZADO) ----------
+
         if ("COMPRA".equals(request.tipo())) {
-            this.registrarSolicitudDeCompra(requerimiento, request.motivoCompra());
+            // Verificamos que el payload de compra exista
+            if (request.solicitudCompra() == null) {
+                throw new IllegalArgumentException("Se requiere el payload 'solicitudCompra' para la operación COMPRA.");
+            }
+            // Llama al método privado con el DTO de creación
+            this.registrarSolicitudDeCompra(requerimiento, request.solicitudCompra());
 
         } else if ("DISTRIBUCION".equals(request.tipo())) {
+            // (La lógica de distribución sigue igual)
             if (request.detallesDistribucion() == null || request.detallesDistribucion().isEmpty()) {
                 throw new IllegalArgumentException("Se requieren detalles de lote para la distribución.");
             }
@@ -79,56 +82,43 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
             throw new IllegalArgumentException("Tipo de operación no válida: " + request.tipo());
         }
 
+        // Actualizar el estado del requerimiento original
         requerimiento.setEstado("En Proceso");
         requerimientoRepository.save(requerimiento);
     }
 
-    // --- MÉTODOS PRIVADOS (HELPERS) ---
-
     /**
-     * Mapea y guarda una nueva Solicitud de Compra.
+     * Mapea y guarda una nueva Solicitud de Compra (Versión B).
+     * AHORA SÍ USA LOS DTOs DE CREACIÓN.
      */
-// En ServiceRegistrarOrdenImpl.java
+    private void registrarSolicitudDeCompra(Requerimiento req, SolicitudCompraCreateDto dto) {
 
-    private void registrarSolicitudDeCompra(Requerimiento req, String motivo) {
-        // 1. Crear la cabecera (SolicitudCompra) - Esto queda igual
+        // 1. Crear la cabecera (SolicitudCompra)
         SolicitudCompra sc = new SolicitudCompra();
-        sc.setIdRequerimiento(req);
+        sc.setIdRequerimiento(req); // Se enlaza al requerimiento original
+        sc.setIdUsuarioSolicitante(dto.idUsuarioSolicitante());
+        sc.setMotivo(dto.motivo());
         sc.setEstado("Pendiente");
-        sc.setIdUsuarioSolicitante(req.getIdUsuarioSolicitante());
-        sc.setMotivo(motivo);
+
         SolicitudCompra cabeceraGuardada = solicitudCompraRepository.save(sc);
 
-        List<DetalleRequerimiento> detallesReq = detalleRequerimientoRepository.findByIdRequerimiento_Id(req.getId());
-
-        // 2. Mapeo MANUAL (DTO -> Entidad) - Lógica de Proveedor AÑADIDA
-        List<DetalleSolicitudCompra> nuevosDetallesSC = detallesReq.stream().map(detalleReq -> {
+        // 2. Mapeo MANUAL de Detalles (DTO -> Entidad)
+        List<DetalleSolicitudCompra> nuevosDetallesSC = dto.detalles().stream().map(detalleDto -> {
             DetalleSolicitudCompra dsc = new DetalleSolicitudCompra();
-            dsc.setIdSolicitud(cabeceraGuardada);
-            dsc.setIdProducto(detalleReq.getIdProducto());
-            dsc.setCantidadSolicitada(detalleReq.getCantidad());
-            dsc.setIdDetalleRequerimiento(detalleReq.getId());
+            dsc.setIdSolicitud(cabeceraGuardada); // Enlaza al padre
+
+            // "Resuelve" los IDs del DTO buscando en la BD
+            dsc.setIdProducto(productoRepository.findById(detalleDto.idProducto())
+                    .orElseThrow(() -> new EntityNotFoundException("Producto no encontrado: " + detalleDto.idProducto())));
+
+            // Lógica corregida: usa el ProveedorRepository
+            dsc.setIdProveedorSeleccionado(proveedorRepository.findById(detalleDto.idProveedorSeleccionado())
+                    .orElseThrow(() -> new EntityNotFoundException("Proveedor no encontrado: " + detalleDto.idProveedorSeleccionado())));
+
+            dsc.setIdDetalleRequerimiento(detalleDto.idDetalleRequerimiento()); // Trazabilidad
+            dsc.setCantidadSolicitada(detalleDto.cantidadSolicitada());
+            dsc.setPrecioReferencial(detalleDto.precioReferencial());
             dsc.setEstado("Pendiente");
-
-            // --- INICIO DE LA LÓGICA DE PROVEEDOR ---
-            // Buscamos una entrada en la tabla ProductoProveedor para este producto
-            ProductoProveedor prodProv = productoProveedorRepository
-                    .findFirstByIdProducto_Id(detalleReq.getIdProducto().getId())
-                    .orElse(null); // .findFirst... trae el primero que encuentre
-
-            if (prodProv != null) {
-                // Si lo encontramos, asignamos el proveedor y el precio
-                dsc.setIdProveedorSeleccionado(prodProv.getIdProveedor());
-                dsc.setPrecioReferencial(prodProv.getPrecioReferencial());
-            } else {
-                // ¡ERROR DE NEGOCIO!
-                // No se puede crear la solicitud porque no hay proveedores
-                // para este producto, y tu BD lo requiere (NOT NULL).
-                throw new EntityNotFoundException("No se encontró un proveedor por defecto para el producto: " + detalleReq.getIdProducto().getNombreProducto());
-
-                // (Si 'idProveedorSeleccionado' permitiera nulos, podríamos omitir esta parte)
-            }
-            // --- FIN DE LA LÓGICA DE PROVEEDOR ---
 
             return dsc;
         }).collect(Collectors.toList());
@@ -136,25 +126,21 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
         detalleSolicitudCompraRepository.saveAll(nuevosDetallesSC);
     }
 
-    /**
-     * Mapea y guarda una nueva Orden de Distribución.
-     */
+    // ... (El resto de métodos: registrarOrdenDeDistribucion, validarStock, etc. quedan igual) ...
+
     private void registrarOrdenDeDistribucion(Requerimiento req, List<DetalleOrdenDistribucionCreateDto> detallesDto) {
-        // 1. Crear la cabecera (OrdenDistribucion)
         OrdenDistribucion od = new OrdenDistribucion();
-        od.setIdRequerimiento(req.getId()); // Guardamos el ID para trazabilidad
-        od.setEstado("Pendiente"); // Pasa a Almacén como "Pendiente"
+        od.setIdRequerimiento(req.getId());
+        od.setEstado("Pendiente");
         od.setIdUsuarioCreacion(req.getIdUsuarioSolicitante());
         od.setPrioridad(req.getPrioridad());
 
         OrdenDistribucion cabeceraGuardada = ordenDistribucionRepository.save(od);
 
-        // 2. Mapeo MANUAL (DTO -> Entidad)
         List<DetalleOrdenDistribucion> nuevosDetallesOD = detallesDto.stream().map(dto -> {
             DetalleOrdenDistribucion dod = new DetalleOrdenDistribucion();
-            dod.setIdOrdenDist(cabeceraGuardada); // Enlaza al padre
+            dod.setIdOrdenDist(cabeceraGuardada);
 
-            // "Resolvemos" los IDs del DTO a Entidades reales
             Producto producto = productoRepository.findById(dto.idProducto())
                     .orElseThrow(() -> new EntityNotFoundException("Producto no encontrado: " + dto.idProducto()));
             dod.setIdProducto(producto);
@@ -164,7 +150,7 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
 
             dod.setCantidad(dto.cantidad());
             dod.setEstadoEntrega("Pendiente");
-            dod.setCondicionesTransporte(producto.getCondicionesTransporte()); // Hereda del producto
+            dod.setCondicionesTransporte(producto.getCondicionesTransporte());
 
             return dod;
         }).collect(Collectors.toList());
@@ -172,14 +158,7 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
         detalleOrdenDistribucionRepository.saveAll(nuevosDetallesOD);
     }
 
-    /**
-     * Validación simple de stock.
-     */
     private void validarStockParaDistribucion(List<DetalleOrdenDistribucionCreateDto> detallesDto) {
-        // Aquí puedes añadir una lógica de validación más robusta.
-        // Por ejemplo, verificar que el dto.idLote realmente pertenezca a dto.idProducto
-        // y que el stock en Inventario para ESE lote sea suficiente.
-
         for (DetalleOrdenDistribucionCreateDto dto : detallesDto) {
             Integer stockEnLote = inventarioRepository.findStockTotalByIdProducto(dto.idProducto());
             if (stockEnLote == null || stockEnLote < dto.cantidad()) {

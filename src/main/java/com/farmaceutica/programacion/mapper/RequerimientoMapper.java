@@ -8,14 +8,16 @@ import java.util.List;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = MappingConstants.ComponentModel.SPRING)
 public interface RequerimientoMapper {
-    @Mapping(source = "idDepartamentoNombreDepartamento", target = "idDepartamento.nombreDepartamento")
+
+    // --- CORREGIDO: Ignorar el objeto Departamento ---
+    @Mapping(target = "idDepartamento", ignore = true)
     Requerimiento toEntity(RequerimientoResumenDto requerimientoResumenDto);
 
     @Mapping(source = "idDepartamento.nombreDepartamento", target = "idDepartamentoNombreDepartamento")
     RequerimientoResumenDto toDto(Requerimiento requerimiento);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(source = "idDepartamentoNombreDepartamento", target = "idDepartamento.nombreDepartamento")
+    @Mapping(target = "idDepartamento", ignore = true)
     Requerimiento partialUpdate(RequerimientoResumenDto requerimientoResumenDto, @MappingTarget Requerimiento requerimiento);
 
     List<RequerimientoResumenDto> toRequerimientoResumenDto(List<Requerimiento> requerimientos);

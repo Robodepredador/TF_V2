@@ -1,5 +1,3 @@
-// Ubicación: com/farmaceutica/programacion/service/ServiceRegistrarProgramacionRequerimientoImpl.java
-
 package com.farmaceutica.programacion.service;
 
 import com.farmaceutica.almacenamiento.dto.InventarioStockDto;

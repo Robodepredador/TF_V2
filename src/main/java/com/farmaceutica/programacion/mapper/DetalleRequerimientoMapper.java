@@ -8,8 +8,9 @@ import java.util.List;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = MappingConstants.ComponentModel.SPRING)
 public interface DetalleRequerimientoMapper {
-    @Mapping(source = "idProducto.idFormaNombreForma", target = "idProducto.idForma.nombreForma")
-    @Mapping(source = "idProducto.idTipoNombreTipo", target = "idProducto.idTipo.nombreTipo")
+
+    // --- CORREGIDO: Ignorar el objeto Producto ---
+    @Mapping(target = "idProducto", ignore = true)
     DetalleRequerimiento toEntity(DetalleRequerimientoDto detalleRequerimientoDto);
 
     @InheritInverseConfiguration(name = "toEntity")
@@ -19,5 +20,7 @@ public interface DetalleRequerimientoMapper {
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     DetalleRequerimiento partialUpdate(DetalleRequerimientoDto detalleRequerimientoDto, @MappingTarget DetalleRequerimiento detalleRequerimiento);
 
+    // --- CORREGIDO: Aplicar la regla de 'toDto' a la lista ---
+    @InheritInverseConfiguration(name = "toEntity")
     List<DetalleRequerimientoDto> toDetalleRequerimientoDto(List<DetalleRequerimiento> detalles);
 }

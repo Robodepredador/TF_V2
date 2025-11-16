@@ -3,12 +3,18 @@
 package com.farmaceutica.almacenamiento.service;
 
 import com.farmaceutica.almacenamiento.dto.AjusteInventarioDto;
+import com.farmaceutica.almacenamiento.dto.IncidenciaLoteDto; // <-- Importado
 import com.farmaceutica.almacenamiento.dto.InventarioDto;
 import com.farmaceutica.almacenamiento.dto.LoteProductoDto;
+import com.farmaceutica.almacenamiento.dto.MovimientoInventarioDto; // <-- Importado
+import com.farmaceutica.almacenamiento.mapper.IncidenciaLoteMapper; // <-- Importado
 import com.farmaceutica.almacenamiento.mapper.InventarioMapper;
 import com.farmaceutica.almacenamiento.mapper.LoteProductoMapper;
+import com.farmaceutica.almacenamiento.mapper.MovimientoInventarioMapper; // <-- Importado
+import com.farmaceutica.almacenamiento.model.IncidenciaLote; // <-- Importado
 import com.farmaceutica.almacenamiento.model.Inventario;
 import com.farmaceutica.almacenamiento.model.MovimientoInventario;
+import com.farmaceutica.almacenamiento.repository.IncidenciaLoteRepository; // <-- Importado
 import com.farmaceutica.almacenamiento.repository.InventarioRepository;
 import com.farmaceutica.almacenamiento.repository.LoteProductoRepository;
 import com.farmaceutica.almacenamiento.repository.MovimientoInventarioRepository;
@@ -26,13 +32,18 @@ import java.util.NoSuchElementException; // O usa EntityNotFoundException
 @Transactional
 public class ServiceActualizarInventarioImpl implements ServiceActualizarInventario {
 
+    // --- Repositorios ---
     private final InventarioRepository inventarioRepository;
     private final LoteProductoRepository loteProductoRepository;
     private final MovimientoInventarioRepository movimientoInventarioRepository;
     private final UsuarioRepository usuarioRepository;
+    private final IncidenciaLoteRepository incidenciaLoteRepository; // <-- AÑADIDO
 
+    // --- Mappers ---
     private final InventarioMapper inventarioMapper;
     private final LoteProductoMapper loteProductoMapper;
+    private final IncidenciaLoteMapper incidenciaLoteMapper; // <-- AÑADIDO
+    private final MovimientoInventarioMapper movimientoInventarioMapper; // <-- AÑADIDO
 
     @Override
     public void actualizarInventario(AjusteInventarioDto dto) {
@@ -90,5 +101,25 @@ public class ServiceActualizarInventarioImpl implements ServiceActualizarInventa
         return loteProductoRepository.findById(idLote)
                 .map(loteProductoMapper::toDto) // Asume que tu mapper se llama toDto
                 .orElseThrow(() -> new NoSuchElementException("Lote no encontrado"));
+    }
+
+    // --- MÉTODOS AÑADIDOS ---
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MovimientoInventarioDto> consultarMovimientosInventario(Integer idInventario) {
+        // --- ¡AQUÍ SE USA! ---
+        List<MovimientoInventario> movimientos = movimientoInventarioRepository.findByIdInventario_Id(idInventario);
+        // Usa el método de lista que corregimos en el mapper
+        return movimientoInventarioMapper.toDto(movimientos);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<IncidenciaLoteDto> consultarIncidenciasPorLote(Integer idLote) {
+        // --- ¡AQUÍ SE USA! ---
+        List<IncidenciaLote> incidencias = incidenciaLoteRepository.findByIdLote_Id(idLote);
+        // Usa el método de lista que corregimos en el mapper
+        return incidenciaLoteMapper.toDto(incidencias);
     }
 }
