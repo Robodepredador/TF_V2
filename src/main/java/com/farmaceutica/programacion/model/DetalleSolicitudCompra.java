@@ -50,10 +50,9 @@ public class DetalleSolicitudCompra {
     @Column(name = "cantidad_aprobada")
     private Integer cantidadAprobada;
 
-    @NotNull
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_proveedor_seleccionado")
     @OnDelete(action = OnDeleteAction.RESTRICT)
-    @JoinColumn(name = "id_proveedor_seleccionado", nullable = false)
     private Proveedor idProveedorSeleccionado;
 
     @Column(name = "precio_referencial", precision = 12, scale = 2)

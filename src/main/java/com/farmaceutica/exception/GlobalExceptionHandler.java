@@ -1,70 +1,96 @@
 package com.farmaceutica.exception;
 
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.context.request.WebRequest;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Controlador global de excepciones para manejar errores comunes del sistema
- * y devolver respuestas JSON uniformes.
- */
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    /**
-     * Maneja excepciones de tipo ResourceNotFoundException (HTTP 404).
-     */
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Object> handleResourceNotFound(ResourceNotFoundException ex, WebRequest request) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.NOT_FOUND.value());
-        body.put("error", "Recurso no encontrado");
-        body.put("message", ex.getMessage());
-        body.put("path", request.getDescription(false).replace("uri=", ""));
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+    // ===========================================================
+    // 404 — Entidad no encontrada
+    // ===========================================================
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<?> handleEntityNotFound(EntityNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(response(false, ex.getMessage(), null));
     }
 
-    /**
-     * Maneja errores de validación de campos (por ejemplo @NotNull, @Size, etc.).
-     */
+    // ===========================================================
+    // 400 — Validaciones @Valid en DTOs
+    // ===========================================================
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Object> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Error de validación");
+    public ResponseEntity<?> handleValidationErrors(MethodArgumentNotValidException ex) {
 
-        Map<String, String> errores = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String campo = ((FieldError) error).getField();
-            String mensaje = error.getDefaultMessage();
-            errores.put(campo, mensaje);
-        });
-        body.put("details", errores);
+        String errorMessage = ex.getBindingResult().getFieldErrors()
+                .stream()
+                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .findFirst()
+                .orElse("Datos inválidos");
 
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        return ResponseEntity.badRequest()
+                .body(response(false, errorMessage, null));
     }
 
-    /**
-     * Maneja cualquier otra excepción no controlada (HTTP 500).
-     */
+    // ===========================================================
+    // 400 — Validaciones @NotNull, @Size en parámetros
+    // ===========================================================
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<?> handleConstraintViolations(ConstraintViolationException ex) {
+
+        String errorMessage = ex.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .findFirst()
+                .orElse("Petición inválida");
+
+        return ResponseEntity.badRequest()
+                .body(response(false, errorMessage, null));
+    }
+
+    // ===========================================================
+    // 409 — Conflictos de negocio
+    // ===========================================================
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<?> handleIllegalState(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(response(false, ex.getMessage(), null));
+    }
+
+    // ===========================================================
+    // 400 — Argumentos erróneos
+    // ===========================================================
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest()
+                .body(response(false, ex.getMessage(), null));
+    }
+
+    // ===========================================================
+    // 500 — Error inesperado
+    // ===========================================================
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Object> handleGeneralException(Exception ex, WebRequest request) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "Error interno del servidor");
-        body.put("message", ex.getMessage());
-        body.put("path", request.getDescription(false).replace("uri=", ""));
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<?> handleUnexpected(Exception ex) {
+        ex.printStackTrace(); // <-- Puedes cambiarlo por logger si quieres
+        return ResponseEntity.internalServerError()
+                .body(response(false, "Ocurrió un error interno en el servidor.", null));
     }
+
+    // ===========================================================
+    // Helper para formato uniforme
+    // ===========================================================
+    private Map<String, Object> response(boolean success, String message, Object data) {
+        return Map.ofEntries(
+                Map.entry("success", success),
+                Map.entry("message", message != null ? message : ""),
+                Map.entry("data", data != null ? data : "")
+        );
+    }
+
+
 }

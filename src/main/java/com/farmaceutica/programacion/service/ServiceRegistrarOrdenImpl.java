@@ -1,25 +1,21 @@
-// Ubicación: com/farmaceutica/programacion/service/ServiceRegistrarOrdenImpl.java
-
 package com.farmaceutica.programacion.service;
 
 import com.farmaceutica.almacenamiento.repository.InventarioRepository;
 import com.farmaceutica.almacenamiento.repository.LoteProductoRepository;
 import com.farmaceutica.compras.model.Producto;
 import com.farmaceutica.compras.repository.ProductoRepository;
-import com.farmaceutica.compras.repository.ProveedorRepository; // <-- Importante
-// import com.farmaceutica.compras.repository.ProductoProveedorRepository; // <-- ELIMINADO
 import com.farmaceutica.distribucion.dto.DetalleOrdenDistribucionCreateDto;
 import com.farmaceutica.distribucion.model.DetalleOrdenDistribucion;
 import com.farmaceutica.distribucion.model.OrdenDistribucion;
 import com.farmaceutica.distribucion.repository.DetalleOrdenDistribucionRepository;
 import com.farmaceutica.distribucion.repository.OrdenDistribucionRepository;
+import com.farmaceutica.exception.BusinessException;
 import com.farmaceutica.programacion.dto.ProgramacionRequestDto;
-import com.farmaceutica.programacion.dto.SolicitudCompraCreateDto; // <-- Importante
-// import com.farmaceutica.programacion.model.DetalleRequerimiento; // <-- ELIMINADO
+import com.farmaceutica.programacion.dto.ProgramacionResultadoDto;
+import com.farmaceutica.programacion.dto.SolicitudCompraCreateDto;
 import com.farmaceutica.programacion.model.DetalleSolicitudCompra;
 import com.farmaceutica.programacion.model.Requerimiento;
 import com.farmaceutica.programacion.model.SolicitudCompra;
-// import com.farmaceutica.programacion.repository.DetalleRequerimientoRepository; // <-- ELIMINADO
 import com.farmaceutica.programacion.repository.DetalleSolicitudCompraRepository;
 import com.farmaceutica.programacion.repository.RequerimientoRepository;
 import com.farmaceutica.programacion.repository.SolicitudCompraRepository;
@@ -29,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,9 +33,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
 
-    // --- Repositories Inyectados (LIMPIOS) ---
     private final RequerimientoRepository requerimientoRepository;
-    // private final DetalleRequerimientoRepository detalleRequerimientoRepository; // <-- ELIMINADO
     private final SolicitudCompraRepository solicitudCompraRepository;
     private final DetalleSolicitudCompraRepository detalleSolicitudCompraRepository;
     private final OrdenDistribucionRepository ordenDistribucionRepository;
@@ -46,124 +41,178 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
     private final InventarioRepository inventarioRepository;
     private final ProductoRepository productoRepository;
     private final LoteProductoRepository loteProductoRepository;
-    private final ProveedorRepository proveedorRepository; // <-- Necesario para el mapeo
-    // private final ProductoProveedorRepository productoProveedorRepository; // <-- ELIMINADO
-
 
     @Override
-    public void registrarOrdenEspecifica(ProgramacionRequestDto request) {
+    public ProgramacionResultadoDto registrarOrdenEspecifica(ProgramacionRequestDto request) {
 
-        Requerimiento requerimiento = requerimientoRepository.findById(request.idRequerimiento())
-                .orElseThrow(() -> new EntityNotFoundException("Requerimiento no encontrado"));
-
-        if (!"Pendiente".equals(requerimiento.getEstado())) {
-            throw new IllegalStateException("El requerimiento ya fue procesado.");
+        if (request == null) {
+            throw new BusinessException("La petición es nula.");
         }
 
-        // ---------- EL FORK (ACTUALIZADO) ----------
+        // Cargar requerimiento
+        Requerimiento req = cargarYValidarRequerimientoPendiente(request.idRequerimiento());
 
-        if ("COMPRA".equals(request.tipo())) {
-            // Verificamos que el payload de compra exista
+        String tipo = request.tipo();
+        Integer idSolicitud = null;
+        Integer idOrden = null;
+
+        // === COMPRA ===
+        if ("COMPRA".equalsIgnoreCase(tipo)) {
+
             if (request.solicitudCompra() == null) {
-                throw new IllegalArgumentException("Se requiere el payload 'solicitudCompra' para la operación COMPRA.");
+                throw new BusinessException("Para COMPRA debe enviar 'solicitudCompra'.");
             }
-            // Llama al método privado con el DTO de creación
-            this.registrarSolicitudDeCompra(requerimiento, request.solicitudCompra());
 
-        } else if ("DISTRIBUCION".equals(request.tipo())) {
-            // (La lógica de distribución sigue igual)
-            if (request.detallesDistribucion() == null || request.detallesDistribucion().isEmpty()) {
-                throw new IllegalArgumentException("Se requieren detalles de lote para la distribución.");
-            }
-            this.validarStockParaDistribucion(request.detallesDistribucion());
-            this.registrarOrdenDeDistribucion(requerimiento, request.detallesDistribucion());
+            idSolicitud = procesarCompra(req, request.solicitudCompra());
 
-        } else {
-            throw new IllegalArgumentException("Tipo de operación no válida: " + request.tipo());
+            marcarRequerimientoEnProceso(req);
+
+            return new ProgramacionResultadoDto(
+                    "COMPRA", idSolicitud, null, "Solicitud de compra creada con éxito."
+            );
         }
 
-        // Actualizar el estado del requerimiento original
-        requerimiento.setEstado("En Proceso");
-        requerimientoRepository.save(requerimiento);
+        // === DISTRIBUCIÓN ===
+        if ("DISTRIBUCION".equalsIgnoreCase(tipo)) {
+
+            if (request.detallesDistribucion() == null || request.detallesDistribucion().isEmpty()) {
+                throw new BusinessException("Para DISTRIBUCION debe enviar 'detallesDistribucion'.");
+            }
+
+            validarStockParaDistribucion(request.detallesDistribucion());
+
+            idOrden = procesarDistribucion(req, request.detallesDistribucion());
+
+            // 👇 Ahora SÍ se marca En Proceso
+            marcarRequerimientoEnProceso(req);
+
+            return new ProgramacionResultadoDto(
+                    "DISTRIBUCION", null, idOrden, "Orden de distribución creada con éxito."
+            );
+        }
+
+        throw new BusinessException("Tipo no soportado: " + tipo);
     }
 
-    /**
-     * Mapea y guarda una nueva Solicitud de Compra (Versión B).
-     * AHORA SÍ USA LOS DTOs DE CREACIÓN.
-     */
-    private void registrarSolicitudDeCompra(Requerimiento req, SolicitudCompraCreateDto dto) {
 
-        // 1. Crear la cabecera (SolicitudCompra)
+    // -------------------------------------------------------
+    // PROCESAR COMPRA
+    // -------------------------------------------------------
+    private Integer procesarCompra(Requerimiento req, SolicitudCompraCreateDto dto) {
+
+        if (dto.detalles() == null || dto.detalles().isEmpty())
+            throw new BusinessException("La solicitud de compra debe incluir al menos un detalle.");
+
+        dto.detalles().forEach(det -> {
+            if (det.cantidadSolicitada() == null || det.cantidadSolicitada() <= 0)
+                throw new BusinessException("Cantidad inválida para producto: " + det.idProducto());
+        });
+
         SolicitudCompra sc = new SolicitudCompra();
-        sc.setIdRequerimiento(req); // Se enlaza al requerimiento original
+        sc.setIdRequerimiento(req);
         sc.setIdUsuarioSolicitante(dto.idUsuarioSolicitante());
         sc.setMotivo(dto.motivo());
         sc.setEstado("Pendiente");
 
-        SolicitudCompra cabeceraGuardada = solicitudCompraRepository.save(sc);
+        SolicitudCompra cabecera = solicitudCompraRepository.save(sc);
 
-        // 2. Mapeo MANUAL de Detalles (DTO -> Entidad)
-        List<DetalleSolicitudCompra> nuevosDetallesSC = dto.detalles().stream().map(detalleDto -> {
-            DetalleSolicitudCompra dsc = new DetalleSolicitudCompra();
-            dsc.setIdSolicitud(cabeceraGuardada); // Enlaza al padre
+        List<DetalleSolicitudCompra> detalles = dto.detalles().stream().map(detDto -> {
 
-            // "Resuelve" los IDs del DTO buscando en la BD
-            dsc.setIdProducto(productoRepository.findById(detalleDto.idProducto())
-                    .orElseThrow(() -> new EntityNotFoundException("Producto no encontrado: " + detalleDto.idProducto())));
+            DetalleSolicitudCompra d = new DetalleSolicitudCompra();
+            d.setIdSolicitud(cabecera);
+            d.setIdProducto(productoRepository.findById(detDto.idProducto())
+                    .orElseThrow(() -> new EntityNotFoundException("Producto no encontrado: " + detDto.idProducto())));
+            d.setIdDetalleRequerimiento(detDto.idDetalleRequerimiento());
+            d.setCantidadSolicitada(detDto.cantidadSolicitada());
+            d.setCantidadAprobada(0);
+            d.setEstado("Pendiente");
+            return d;
 
-            // Lógica corregida: usa el ProveedorRepository
-            dsc.setIdProveedorSeleccionado(proveedorRepository.findById(detalleDto.idProveedorSeleccionado())
-                    .orElseThrow(() -> new EntityNotFoundException("Proveedor no encontrado: " + detalleDto.idProveedorSeleccionado())));
-
-            dsc.setIdDetalleRequerimiento(detalleDto.idDetalleRequerimiento()); // Trazabilidad
-            dsc.setCantidadSolicitada(detalleDto.cantidadSolicitada());
-            dsc.setPrecioReferencial(detalleDto.precioReferencial());
-            dsc.setEstado("Pendiente");
-
-            return dsc;
         }).collect(Collectors.toList());
 
-        detalleSolicitudCompraRepository.saveAll(nuevosDetallesSC);
+        detalleSolicitudCompraRepository.saveAll(detalles);
+
+        return cabecera.getId();
     }
 
-    // ... (El resto de métodos: registrarOrdenDeDistribucion, validarStock, etc. quedan igual) ...
+    // -------------------------------------------------------
+    // PROCESAR DISTRIBUCIÓN
+    // -------------------------------------------------------
+    private Integer procesarDistribucion(Requerimiento req, List<DetalleOrdenDistribucionCreateDto> detallesDto) {
 
-    private void registrarOrdenDeDistribucion(Requerimiento req, List<DetalleOrdenDistribucionCreateDto> detallesDto) {
         OrdenDistribucion od = new OrdenDistribucion();
         od.setIdRequerimiento(req.getId());
-        od.setEstado("Pendiente");
         od.setIdUsuarioCreacion(req.getIdUsuarioSolicitante());
         od.setPrioridad(req.getPrioridad());
+        od.setEstado("Pendiente");
 
-        OrdenDistribucion cabeceraGuardada = ordenDistribucionRepository.save(od);
+        OrdenDistribucion cabecera = ordenDistribucionRepository.save(od);
 
-        List<DetalleOrdenDistribucion> nuevosDetallesOD = detallesDto.stream().map(dto -> {
+        List<DetalleOrdenDistribucion> detalles = detallesDto.stream().map(dto -> {
+
+            if (dto.cantidad() == null || dto.cantidad() <= 0)
+                throw new BusinessException("Cantidad inválida para producto: " + dto.idProducto());
+
             DetalleOrdenDistribucion dod = new DetalleOrdenDistribucion();
-            dod.setIdOrdenDist(cabeceraGuardada);
+            dod.setIdOrdenDist(cabecera);
 
             Producto producto = productoRepository.findById(dto.idProducto())
                     .orElseThrow(() -> new EntityNotFoundException("Producto no encontrado: " + dto.idProducto()));
             dod.setIdProducto(producto);
 
-            dod.setIdLote(loteProductoRepository.findById(dto.idLote())
-                    .orElseThrow(() -> new EntityNotFoundException("Lote no encontrado: " + dto.idLote())));
+            var lote = loteProductoRepository.findById(dto.idLote())
+                    .orElseThrow(() -> new EntityNotFoundException("Lote no encontrado: " + dto.idLote()));
 
+            if (!Objects.equals(lote.getIdProducto().getId(), dto.idProducto()))
+                throw new BusinessException("El lote " + dto.idLote() + " no pertenece al producto " + dto.idProducto());
+
+            dod.setIdLote(lote);
             dod.setCantidad(dto.cantidad());
             dod.setEstadoEntrega("Pendiente");
             dod.setCondicionesTransporte(producto.getCondicionesTransporte());
 
             return dod;
+
         }).collect(Collectors.toList());
 
-        detalleOrdenDistribucionRepository.saveAll(nuevosDetallesOD);
+        detalleOrdenDistribucionRepository.saveAll(detalles);
+
+        return cabecera.getId();
+    }
+
+    // -------------------------------------------------------
+    // VALIDACIONES
+    // -------------------------------------------------------
+    private Requerimiento cargarYValidarRequerimientoPendiente(Integer idRequerimiento) {
+
+        if (idRequerimiento == null)
+            throw new BusinessException("Debe enviar idRequerimiento.");
+
+        Requerimiento req = requerimientoRepository.findById(idRequerimiento)
+                .orElseThrow(() -> new EntityNotFoundException("Requerimiento no encontrado."));
+
+        if (!"Pendiente".equalsIgnoreCase(req.getEstado()))
+            throw new BusinessException("El requerimiento no está Pendiente.");
+
+        return req;
+    }
+
+    private void marcarRequerimientoEnProceso(Requerimiento req) {
+        req.setEstado("En Proceso");
+        requerimientoRepository.save(req);
     }
 
     private void validarStockParaDistribucion(List<DetalleOrdenDistribucionCreateDto> detallesDto) {
+
         for (DetalleOrdenDistribucionCreateDto dto : detallesDto) {
-            Integer stockEnLote = inventarioRepository.findStockTotalByIdProducto(dto.idProducto());
-            if (stockEnLote == null || stockEnLote < dto.cantidad()) {
-                throw new IllegalStateException("Stock insuficiente para el producto ID: " + dto.idProducto());
-            }
+
+            if (dto.cantidad() == null || dto.cantidad() <= 0)
+                throw new BusinessException("Cantidad inválida para producto: " + dto.idProducto());
+
+            Integer stockTotal = inventarioRepository.findStockTotalByIdProducto(dto.idProducto());
+
+            if (stockTotal == null || stockTotal < dto.cantidad())
+                throw new BusinessException("Stock insuficiente para producto: " + dto.idProducto());
         }
     }
 }

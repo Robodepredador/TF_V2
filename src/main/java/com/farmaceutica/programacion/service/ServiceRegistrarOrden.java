@@ -1,16 +1,15 @@
 package com.farmaceutica.programacion.service;
 
 import com.farmaceutica.programacion.dto.ProgramacionRequestDto;
+import com.farmaceutica.programacion.dto.ProgramacionResultadoDto;
 
 public interface ServiceRegistrarOrden {
 
     /**
-     * Método principal (EL FORK).
-     * Procesa un requerimiento pendiente y crea una Orden de Compra (Solicitud)
-     * o una Orden de Distribución, según la lógica de stock y la decisión
-     * del supervisor.
+     * Procesa un requerimiento pendiente y crea una Solicitud de Compra (si tipo=COMPRA)
+     * o una Orden de Distribución (si tipo=DISTRIBUCION).
      *
-     * @param request DTO que contiene el ID del requerimiento y la decisión.
+     * Devuelve un DTO con el resultado (id de la entidad creada y mensaje).
      */
-    void registrarOrdenEspecifica(ProgramacionRequestDto request);
+    ProgramacionResultadoDto registrarOrdenEspecifica(ProgramacionRequestDto request);
 }

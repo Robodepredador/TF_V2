@@ -1,16 +1,18 @@
 package com.farmaceutica.programacion.dto;
 
 import com.farmaceutica.distribucion.dto.DetalleOrdenDistribucionCreateDto;
+import com.farmaceutica.programacion.validation.ProgramacionRequestValido;
+import com.farmaceutica.programacion.validation.TipoProgramacionValido;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
 import java.util.List;
 
-/**
- * DTO principal para el 'fork'.
- * Contiene la decisión y el PAYLOAD (la carga) para la operación.
- */
+@ProgramacionRequestValido
 public record ProgramacionRequestDto(
-        Integer idRequerimiento, // El ID del requerimiento original (para actualizar su estado)
-        String tipo, // "COMPRA" o "DISTRIBUCION"
-
-        SolicitudCompraCreateDto solicitudCompra,
-        List<DetalleOrdenDistribucionCreateDto> detallesDistribucion
+        @NotNull Integer idRequerimiento,
+        @TipoProgramacionValido String tipo,
+        @Valid SolicitudCompraCreateDto solicitudCompra,
+        @Valid @Size(min = 1) List<DetalleOrdenDistribucionCreateDto> detallesDistribucion
 ) {}
