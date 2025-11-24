@@ -1,20 +1,20 @@
 package com.farmaceutica.programacion.controller;
 
 import com.farmaceutica.almacenamiento.dto.InventarioStockDto;
+import com.farmaceutica.exception.BusinessException;
 import com.farmaceutica.programacion.dto.DetalleRequerimientoDto;
-import com.farmaceutica.programacion.dto.ProgramacionRequestDto;
 import com.farmaceutica.programacion.dto.ProgramacionResultadoDto;
 import com.farmaceutica.programacion.dto.RequerimientoResumenDto;
 import com.farmaceutica.programacion.service.ServiceRegistrarOrden;
 import com.farmaceutica.programacion.service.ServiceRegistrarProgramacionRequerimiento;
-import jakarta.validation.Valid;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/programacion")
@@ -23,6 +23,25 @@ public class ProgramacionController {
 
     private final ServiceRegistrarProgramacionRequerimiento serviceProgramacion;
     private final ServiceRegistrarOrden serviceRegistrarOrden;
+
+    // ===============================
+    // HANDLER DE ERRORES
+    // ===============================
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<?> manejarBusiness(BusinessException ex) {
+        return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<?> manejarNotFound(EntityNotFoundException ex) {
+        return ResponseEntity.status(404).body(Map.of(
+                "success", false,
+                "message", ex.getMessage()
+        ));
+    }
 
     // ===========================================================
     // GET — Requerimientos pendientes
@@ -57,7 +76,7 @@ public class ProgramacionController {
     }
 
     // ===========================================================
-    // GET — Stock disponible de un producto
+    // GET — Stock de un producto
     // ===========================================================
     @GetMapping("/productos/{idProducto}/stock")
     public ResponseEntity<?> obtenerStock(@PathVariable Integer idProducto) {
@@ -73,21 +92,20 @@ public class ProgramacionController {
     }
 
     // ===========================================================
-    // POST — Registrar Orden (COMPRA o DISTRIBUCIÓN)
+    // POST — Procesamiento automático (OPCIÓN A)
     // ===========================================================
-    @PostMapping("/ordenes")
-    public ResponseEntity<?> registrarOrden(@Valid @RequestBody ProgramacionRequestDto request) {
+    @PostMapping("/aceptar/{idRequerimiento}")
+    public ResponseEntity<?> aceptarRequerimiento(@PathVariable Integer idRequerimiento) {
 
-        var result = serviceRegistrarOrden.registrarOrdenEspecifica(request);
+        ProgramacionResultadoDto result = serviceRegistrarOrden.procesarAutomatico(idRequerimiento);
 
         Map<String, Object> body = new HashMap<>();
         body.put("success", true);
-        body.put("tipo", result.tipo());
-        body.put("idSolicitudCompra", result.idSolicitudCompra());   // puede ser null
-        body.put("idOrdenDistribucion", result.idOrdenDistribucion()); // puede ser null
-        body.put("message", result.message());
+        body.put("message", "Requerimiento atendido automáticamente.");
+        body.put("idOrdenDistribucion", result.idOrdenDistribucion());
+        body.put("idSolicitudCompra", result.idSolicitudCompra());
 
         return ResponseEntity.ok(body);
-    }
 
+    }
 }

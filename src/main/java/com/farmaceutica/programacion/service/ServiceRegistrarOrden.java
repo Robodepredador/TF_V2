@@ -12,4 +12,7 @@ public interface ServiceRegistrarOrden {
      * Devuelve un DTO con el resultado (id de la entidad creada y mensaje).
      */
     ProgramacionResultadoDto registrarOrdenEspecifica(ProgramacionRequestDto request);
+
+    ProgramacionResultadoDto procesarAutomatico(Integer idRequerimiento);
+
 }

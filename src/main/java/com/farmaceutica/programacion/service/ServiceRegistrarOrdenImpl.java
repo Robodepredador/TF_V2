@@ -1,5 +1,6 @@
 package com.farmaceutica.programacion.service;
 
+import com.farmaceutica.almacenamiento.model.LoteProducto;
 import com.farmaceutica.almacenamiento.repository.InventarioRepository;
 import com.farmaceutica.almacenamiento.repository.LoteProductoRepository;
 import com.farmaceutica.compras.model.Producto;
@@ -13,8 +14,10 @@ import com.farmaceutica.exception.BusinessException;
 import com.farmaceutica.programacion.dto.ProgramacionRequestDto;
 import com.farmaceutica.programacion.dto.ProgramacionResultadoDto;
 import com.farmaceutica.programacion.dto.SolicitudCompraCreateDto;
+import com.farmaceutica.programacion.model.DetalleRequerimiento;
 import com.farmaceutica.programacion.model.DetalleSolicitudCompra;
 import com.farmaceutica.programacion.model.Requerimiento;
+import com.farmaceutica.programacion.repository.DetalleRequerimientoRepository;
 import com.farmaceutica.programacion.model.SolicitudCompra;
 import com.farmaceutica.programacion.repository.DetalleSolicitudCompraRepository;
 import com.farmaceutica.programacion.repository.RequerimientoRepository;
@@ -24,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -41,6 +45,8 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
     private final InventarioRepository inventarioRepository;
     private final ProductoRepository productoRepository;
     private final LoteProductoRepository loteProductoRepository;
+    private final DetalleRequerimientoRepository detalleRequerimientoRepository;
+
 
     @Override
     public ProgramacionResultadoDto registrarOrdenEspecifica(ProgramacionRequestDto request) {
@@ -215,4 +221,137 @@ public class ServiceRegistrarOrdenImpl implements ServiceRegistrarOrden {
                 throw new BusinessException("Stock insuficiente para producto: " + dto.idProducto());
         }
     }
+
+    @Override
+    @Transactional
+    public ProgramacionResultadoDto procesarAutomatico(Integer idRequerimiento) {
+
+        // 1. Cargar requerimiento
+        Requerimiento req = requerimientoRepository.findById(idRequerimiento)
+                .orElseThrow(() -> new EntityNotFoundException("Requerimiento no encontrado."));
+
+        // 2. Validar estado
+        if (!"Pendiente".equalsIgnoreCase(req.getEstado())) {
+            throw new BusinessException("El requerimiento no está Pendiente.");
+        }
+
+        // 3. Cargar detalles
+        List<DetalleRequerimiento> detalles = detalleRequerimientoRepository.findByIdRequerimiento_Id(idRequerimiento);
+
+        if (detalles.isEmpty()) {
+            throw new BusinessException("El requerimiento no tiene detalles.");
+        }
+
+        Integer idSolicitudCompra = null;
+        Integer idOrdenDistribucion = null;
+
+        List<DetalleSolicitudCompra> detallesCompra = new java.util.ArrayList<>();
+        List<DetalleOrdenDistribucion> detallesDistribucion = new java.util.ArrayList<>();
+
+        // 4. Procesar cada producto del requerimiento
+        for (DetalleRequerimiento det : detalles) {
+
+            Integer productoId = det.getIdProducto().getId();
+            Integer cantidadSolicitada = det.getCantidad();
+
+            // stock total real del inventario
+            Integer stockTotal = inventarioRepository.findStockTotalByIdProducto(productoId);
+            stockTotal = (stockTotal == null ? 0 : stockTotal);
+
+            // === DISTRIBUCIÓN (stock suficiente) ===
+            if (stockTotal >= cantidadSolicitada) {
+
+                // buscar lotes con stock > 0 y del producto, ordenados FEFO
+                List<LoteProducto> lotesFEFO = inventarioRepository.findByIdLote_IdProducto_IdAndStockActualGreaterThan(productoId, 0)
+                        .stream()
+                        .map(inv -> inv.getIdLote())
+                        .distinct()
+                        .sorted(Comparator.comparing(LoteProducto::getFechaVencimiento))
+                        .toList();
+
+                if (lotesFEFO.isEmpty()) {
+                    throw new BusinessException("No hay lotes disponibles para el producto " + productoId);
+                }
+
+                // Tomar el lote FEFO
+                LoteProducto loteSeleccionado = lotesFEFO.get(0);
+
+                DetalleOrdenDistribucion d = new DetalleOrdenDistribucion();
+                d.setIdProducto(det.getIdProducto());
+                d.setIdLote(loteSeleccionado);
+                d.setCantidad(cantidadSolicitada);
+                d.setEstadoEntrega("Pendiente");
+                d.setCondicionesTransporte(det.getIdProducto().getCondicionesTransporte());
+
+                detallesDistribucion.add(d);
+
+            } else {
+                // === COMPRA (stock insuficiente) ===
+                DetalleSolicitudCompra d = new DetalleSolicitudCompra();
+                d.setIdProducto(det.getIdProducto());
+                d.setIdDetalleRequerimiento(det.getId());
+                d.setCantidadSolicitada(cantidadSolicitada);
+                d.setCantidadAprobada(0);
+                d.setEstado("Pendiente");
+
+                detallesCompra.add(d);
+            }
+        }
+
+        // 5. Crear Orden de Distribución
+        if (!detallesDistribucion.isEmpty()) {
+
+            OrdenDistribucion od = new OrdenDistribucion();
+            od.setIdRequerimiento(req.getId());
+            od.setIdUsuarioCreacion(req.getIdUsuarioSolicitante());
+            od.setPrioridad(req.getPrioridad());
+            od.setEstado("Pendiente");
+
+            OrdenDistribucion saved = ordenDistribucionRepository.save(od);
+
+            for (DetalleOrdenDistribucion d : detallesDistribucion) {
+                d.setIdOrdenDist(saved);
+            }
+
+            detalleOrdenDistribucionRepository.saveAll(detallesDistribucion);
+
+            idOrdenDistribucion = saved.getId();
+        }
+
+        // 6. Crear Solicitud de Compra
+        if (!detallesCompra.isEmpty()) {
+
+            SolicitudCompra sc = new SolicitudCompra();
+            sc.setIdRequerimiento(req);
+            sc.setIdUsuarioSolicitante(req.getIdUsuarioSolicitante());
+            sc.setEstado("Pendiente");
+            sc.setMotivo("Generado automáticamente por falta de stock");
+
+            SolicitudCompra saved = solicitudCompraRepository.save(sc);
+
+            for (DetalleSolicitudCompra d : detallesCompra) {
+                d.setIdSolicitud(saved);
+            }
+
+            detalleSolicitudCompraRepository.saveAll(detallesCompra);
+
+            idSolicitudCompra = saved.getId();
+        }
+
+        // 7. Actualizar estado del requerimiento
+        req.setEstado("En Proceso");
+        requerimientoRepository.save(req);
+
+        // 8. Respuesta final
+        return new ProgramacionResultadoDto(
+                "AUTO",
+                idSolicitudCompra,
+                idOrdenDistribucion,
+                "Requerimiento atendido automáticamente."
+        );
+    }
+
+
+
+
 }
